@@ -22,6 +22,11 @@ interface MessageToModerate {
 function App() {
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [messages, setMessages] = useState<Array<MessageToModerate>>([]);
+  const [prompt, setPrompt] = useState<string | null>(null);
+  const [promptRequiresModeration, setPromptRequiresModeration] = useState<
+    boolean | null
+  >(null);
+
   const onLogin = (name: string, password: string) => {
     if (ws) {
       ws.removeEventListener("open", onWebsocketOpen);
@@ -48,6 +53,8 @@ function App() {
         if (parsed.type === "STATE") {
           console.log("Set all messages");
           setMessages(parsed.messages);
+          setPrompt(parsed.prompt);
+          setPromptRequiresModeration(parsed.promptRequiresModeration);
         } else if (parsed.type === "NEW_MESSAGE") {
           console.log("Added message " + parsed.message.msgId);
           setMessages([...messages, parsed.message]);
@@ -95,6 +102,14 @@ function App() {
 
   return (
     <div className="App">
+      {prompt !== null && <div>Prompt: {prompt}</div>}
+      {promptRequiresModeration === false && (
+        <div style={{ fontSize: "0.75rem" }}>
+          This prompt does not require moderation. You can reject
+          cheaters/jerks, but there's no need to comb over every message. If you
+          accidentally rejected someone, just click "approve".
+        </div>
+      )}
       {messages.map((message) => {
         let icon: string;
         let bgColor: string;
@@ -110,7 +125,7 @@ function App() {
             break;
           case ModerationStatus.Unmodded:
             icon = "❓";
-            bgColor = "#ffffcc";
+            bgColor = promptRequiresModeration ? "#ffffcc" : "transparent";
             break;
         }
 
