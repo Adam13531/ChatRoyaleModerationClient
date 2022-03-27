@@ -1,24 +1,130 @@
-import React from 'react';
-import logo from './logo.svg';
-import './App.css';
+import React, { useEffect, useState } from "react";
+import _ from "lodash";
+import "./App.css";
+import Login from "./Login";
+
+enum ModerationStatus {
+  Unmodded = 1,
+  Approved = 2,
+  Rejected = 3,
+}
+
+interface MessageToModerate {
+  senderDisplayName: string;
+
+  // The client doesn't actually use this, but I'm taking lots of shortcuts.
+  userId: string;
+  msgId: string;
+  message: string;
+  moderationStatus: ModerationStatus;
+}
 
 function App() {
+  const [ws, setWs] = useState<WebSocket | null>(null);
+  const [messages, setMessages] = useState<Array<MessageToModerate>>([]);
+  const onLogin = (name: string, password: string) => {
+    if (ws) {
+      ws.removeEventListener("open", onWebsocketOpen);
+      ws.removeEventListener("close", onWebsocketClose);
+
+      ws.close();
+      setWs(null);
+    }
+
+    const params = new URLSearchParams({ name, password });
+    const websocket = new WebSocket(`ws://localhost:7897/?${params}`);
+    setWs(websocket);
+    websocket.onopen = onWebsocketOpen;
+    websocket.onclose = onWebsocketClose;
+  };
+
+  useEffect(() => {
+    if (!ws) return;
+
+    const onWebsocketMessage = (evt: MessageEvent) => {
+      try {
+        const parsed = JSON.parse(evt.data);
+        console.log(`Got a JSON message of type "${parsed.type}": ${evt.data}`);
+        if (parsed.type === "STATE") {
+          console.log("Set all messages");
+          setMessages(parsed.messages);
+        } else if (parsed.type === "NEW_MESSAGE") {
+          console.log("Added message " + parsed.message.msgId);
+          setMessages([...messages, parsed.message]);
+        } else if (parsed.type === "SET_MOD_STATUS") {
+          let messageIndex = null;
+          for (let i = 0; i < messages.length; ++i) {
+            if (messages[i].msgId === parsed.msgId) {
+              messageIndex = i;
+              break;
+            }
+          }
+          if (messageIndex != null) {
+            console.log("found message: " + messageIndex);
+            const clonedMessages = _.cloneDeep(messages);
+            clonedMessages[messageIndex] = {
+              ...messages[messageIndex],
+              moderationStatus: parsed.moderationStatus,
+            };
+            setMessages(clonedMessages);
+          }
+        }
+      } catch (e) {
+        console.log("Got a message that wasn't JSON: " + evt.data);
+      }
+    };
+
+    ws.removeEventListener("message", onWebsocketMessage);
+    ws.onmessage = onWebsocketMessage;
+  }, [ws, messages]);
+
+  const onWebsocketOpen = () => {
+    console.log("got websocketopen");
+  };
+
+  const onWebsocketClose = () => {
+    console.log("got websocketclose");
+  };
+
+  const approve = (msgId: string) => {
+    ws!.send(JSON.stringify({ type: "APPROVE", msgId }));
+  };
+  const reject = (msgId: string) => {
+    ws!.send(JSON.stringify({ type: "REJECT", msgId }));
+  };
+
   return (
     <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+      {messages.map((message) => {
+        let icon: string;
+        let bgColor: string;
+
+        switch (message.moderationStatus) {
+          case ModerationStatus.Approved:
+            icon = "✅";
+            bgColor = "#ddffdd";
+            break;
+          case ModerationStatus.Rejected:
+            icon = "❌";
+            bgColor = "#ffdddd";
+            break;
+          case ModerationStatus.Unmodded:
+            icon = "❓";
+            bgColor = "#ffffcc";
+            break;
+        }
+
+        return (
+          <div style={{ background: bgColor }} key={message.msgId}>
+            <span>
+              <button onClick={() => approve(message.msgId)}>Approve</button>
+              <button onClick={() => reject(message.msgId)}>Reject</button>
+            </span>
+            {icon} {message.senderDisplayName}: {message.message}
+          </div>
+        );
+      })}
+      <Login onLogin={onLogin} />
     </div>
   );
 }
