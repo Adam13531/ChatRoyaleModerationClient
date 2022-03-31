@@ -124,17 +124,20 @@ function App() {
             bgColor = "#ffdddd";
             break;
           case ModerationStatus.Unmodded:
-            icon = "❓";
+            icon = promptRequiresModeration ? "❓" : "";
             bgColor = promptRequiresModeration ? "#ffffcc" : "transparent";
             break;
         }
 
         return (
-          <div style={{ background: bgColor }} key={message.msgId}>
-            <span>
+          <div
+            style={{ background: bgColor, display: "flex" }}
+            key={message.msgId}
+          >
+            <div style={{ display: "flex", alignSelf: "center" }}>
               <button onClick={() => approve(message.msgId)}>Approve</button>
               <button onClick={() => reject(message.msgId)}>Reject</button>
-            </span>
+            </div>
             {icon} {message.senderDisplayName}: {message.message}
           </div>
         );
