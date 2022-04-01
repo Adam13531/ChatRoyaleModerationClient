@@ -7,7 +7,7 @@ interface LoginProps {
 function Login(props: LoginProps) {
   const { onLogin } = props;
   const [name, setName] = useState("");
-  const [password, setPassword] = useState("hunter2");
+  const [password, setPassword] = useState("");
   const login = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
 
